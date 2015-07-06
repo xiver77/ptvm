@@ -1,3 +1,42 @@
 In g++ compile it with "g++ ptvm.cpp -std=c++11 -fwhole-program -s -O3"
 
 You can also use any C++11 complient compiler.
+
+
+ptvm specification
+----------------------
+
+ptvm is an abbreviation for pointer virtual machine. The word 'pointer' is there because this project initially started as an attempt to write an interpreter for PointerLang. I later switched my mind and ended up with a full VM.
+
+The base machine to run ptvm must have a byte size of 8 bits and use 2's complement integers.
+
+Every instruction fits in a single byte. An instruction may take one or more arguments, and if it does, it always takes the same number of arguments. Each argument also fits in a byte. To pass a 32-bit number as an argument, you pass 4 arguments in big-endian order. `0x11223344` is passed as `0x11 0x22 0x33 0x44`.
+
+There are 512 general purpose registers for free use. Half of them are local registers, and the other half are global registers. Local registers are local to each function call while global registers don't change their state through function calls. The main purpose of global registers is to pass arguments to and receive return values from a function. Each time you call a function, you get a fresh set of local registers, and you get back to the previous state of local registers after a return from a function. `L0` ~ `L255` and `G0` ~ `G255` are the names for the local and global registers, respectively. The size of each register is 4 or more bytes, same as `long` in C.
+
+A ptvm program consists of functions. It can have up to 0x10000 functions, and must have function 0, which is the `main` function. Functions cannot be nested, and having anything other than function definitions in the outermost scope of the bytecode program is an error. Labels are local to each function.
+
+Below is the list of instructions. `A0`, `A1`, `A2`, ... is used to denote the arguments. `An-Am` means these two arguments are combined as a single integer. The instructions are executed sequentially per function scope, and only `GO2` can change the order of execution.
+
+ - `FN A0 A1` define function `A0-A1`
+ - `CAL A0 A1` call function `A0-A1`
+ - `RTN` return from a function
+ - `GO2 A0` go to the instruction after `LBL A0` if the `L0` register is non-0
+ - `LBL A0` define a function-scope label
+ - `MRL A0 A1 A2 A3 A4 A5` move `A2-A5` to register `A0 A1` (`A0` is the type of register, local or global; `A1` is the register number from 0 to 255)
+ - `MRR A0 A1 A2 A3` move to register `A0 A1` from register `A2 A3`.
+ - `MRM A0 A1 A2 A3 A4` move to register `A0 A1` from the memory address at register `A2 A3` with `A4` bytes
+ - `MMR A0 A1 A2 A3 A4` move to the memory address at register `A0 A1` from register `A2 A3` with `A4` bytes
+ - `MLC A0 A1 A2 A3` allocate a block of memory using register `A2 A3` as its size, and store the starting address at register `A0 A1` 
+ - `FRE A0 A1` free a block of memory at the address in register `A0 A1`
+ - `WR A0 A1 A2` write to the terminal the value at register `A1 A2`. `A0` sets the output type, which can be one of signed, unsigned, character, or string. If the output type is string, register `A1 A2` should hold a pointer to a 0-terminated byte string.
+ - `WRL` output a newline to the terminal
+ - `ADD`, `SUB`, `SML`, `UML`, `SDV`, `UDV`, `SMD`, `UMD`, `LSH`, `RSH`, `AND`, `OR`, `XOR`
+  - These instructions take 4 arguments `A0 A1 A2 A3` and applies the operation to register `A0 A1` with `A2 A3`. For example, if `L1` and `L2` holds 1 and 2, `SUB L1 L2` will make `L1` minus 1. There are signed and unsigned versions for multiplication, division, and modulo. `SML L1 L2` will multiply taking the values as signed while `UML` will take the values as unsigned. The same applies for `SDV`-`UDV` and `SMD`-`UMD`, division and modulo. `AND` and `OR` are bitwise.
+ - `EQ`, `SLT`, `ULT`, `SGT`, `UGT`
+  - These instructions take 4 arguments `A0 A1 A2 A3` and set the value of `L0` as the result of the comparison. `SLT` (less than) and `SGT` (greater than) takes signed arguments while `ULT` and `UGT` takes unsigned arguments. If the comparison is true, `L0` is set to 1, otherwise 0.
+ - `LNT` applies logical not operation to `L0`
+ - `BNT A0 A1` applies bitwise not operation to register `A0 A1`
+ - `MIN A0 A1` applies unary minus operation to register `A0 A1`
+ 
+ 
